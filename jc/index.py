@@ -32,6 +32,8 @@ def terms(task):
 
 
 def source(root, name, max_bytes=100000):
+    # macOS /var aliases /private/var; normalize the trusted root before containment checks.
+    root = Path(root).resolve()
     path = root / name
     if Path(name).is_absolute() or '..' in Path(name).parts or not path.resolve().is_relative_to(root):
         raise ValueError('Source escapes repository')

@@ -80,6 +80,14 @@ class ConfigurationTests(RepoTest):
         with self.assertRaises(ValueError):
             retrieve(self.repo, 'auth')
 
+    def test_repository_root_alias(self):
+        alias = self.home / 'repo-alias'
+        alias.symlink_to(self.repo, target_is_directory=True)
+        self.assertIn('refresh_token', source(alias, 'auth.py'))
+        (self.repo / 'inside-link.py').symlink_to(self.repo / 'auth.py')
+        with self.assertRaises(ValueError):
+            source(alias, 'inside-link.py')
+
     def test_path_escape(self):
         with self.assertRaises(ValueError):
             source(self.repo, '../outside')
