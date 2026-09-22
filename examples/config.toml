@@ -1,0 +1,16 @@
+budget = 8000
+candidates = 40
+full_threshold = 0.8
+excerpt_threshold = 0.4
+model = "jev-latest"
+timeout = 20
+retries = 1
+cache_ttl = 86400
+tool_limit = 5
+routing_threshold = 0.95
+# Relative to the repository root:
+# rules_manifest = ".jev/rules.toml"
+# tools_catalog = ".jev/tools.json"
+# Explicitly supply models available to your Codex account:
+# small_model = "..."
+# large_model = "..."

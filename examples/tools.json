@@ -1,0 +1,12 @@
+[
+  {
+    "name": "database.inspect_schema",
+    "description": "Read the database schema and foreign key relationships. Requires a separately configured database connector.",
+    "inputSchema": {"type": "object", "properties": {"table": {"type": "string"}}}
+  },
+  {
+    "name": "github.search_issues",
+    "description": "Search existing repository issues for bug reports. Requires a separately configured GitHub connector.",
+    "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}
+  }
+]
