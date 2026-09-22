@@ -75,15 +75,17 @@ class CoreTests(unittest.TestCase):
         for fail in (False, True):
             with tempfile.TemporaryDirectory() as td:
                 out = Path(td) / 'run'
+                subprocess.run(['git', 'init', '-q', td], check=True)
+                subprocess.run(['git', '-C', td, '-c', 'user.name=Test', '-c', 'user.email=test@local', 'commit', '--allow-empty', '-qm', 'Initial'], check=True)
                 chunk = self.chunk()
                 response = {'x': .93}, {'input_tokens': 123, 'output_tokens': 4}
-                with patch('jc.cli.retrieve', return_value=([chunk], {})), \
-                     patch('jc.cli.ask', side_effect=TimeoutError() if fail else None, return_value=response), \
+                with patch('jc.service.retrieve', return_value=([chunk], {})), \
+                     patch('jc.service.ask', side_effect=TimeoutError() if fail else None, return_value=response), \
                      patch.dict('os.environ', {'TYPESAFE_API_KEY': 'test-only'}), \
                      patch('sys.argv', ['jc', 'search', 'token', '--repo', td, '--plain', '--output', str(out)]):
                     self.assertEqual(main(), 0)
                 metrics = json.loads((out / 'metrics.json').read_text())
-                self.assertEqual(metrics['api_failures'], int(fail))
+                self.assertEqual(metrics['api_failures'], 2 if fail else 0)
                 self.assertIn(chunk.content, (out / 'context-pack.md').read_text())
                 self.assertNotIn('test-only', ''.join(p.read_text() for p in out.iterdir()))
 

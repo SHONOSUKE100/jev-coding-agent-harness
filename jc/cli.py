@@ -1,12 +1,11 @@
 from __future__ import annotations
-import argparse
 import json
 import os
 import sys
 import time
 from pathlib import Path
 from uuid import uuid4
-from .core import Chunk, ask, estimate, retrieve, safe_display, save_run, select
+from .core import Chunk, estimate, safe_display, save_run, select
 
 COLORS = {'FULL': 121, 'PIN': 117, 'EXCERPT': 221, 'DROP': 203}
 
@@ -49,46 +48,15 @@ def fixtures():
 
 
 def run(args):
-    started = time.monotonic()
-    task = 'Fix expired refresh token returning HTTP 500' if args.command == 'demo' else args.task
-    print('\n  JEV / WORK   Context observatory\n  ' + ('DEMO · scripted scores · no API' if args.command == 'demo' else 'LIVE · source excerpts sent to TypeSafe') + '\n  ' + safe_display(task), file=sys.stderr)
-    usage, fallback, calls, failures = [], set(), 0, 0
-    if args.command == 'demo':
-        chunks, scores = fixtures()
-        retrieval = {'demo': True}
-    else:
-        key = os.environ.get('TYPESAFE_API_KEY', '')
-        if not key:
-            raise ValueError('Set TYPESAFE_API_KEY, or use demo for offline playback')
-        if len(task.encode()) > 8000:
-            raise ValueError('Task exceeds 8 KB limit')
-        chunks, retrieval = retrieve(Path(args.repo), task, args.candidates)
-        if not chunks:
-            raise ValueError('No eligible tracked source files found')
-        scores = {}
-        pending = [c for c in chunks if not c.pinned]
-        print(f'  {len(chunks)} candidates. Instructions pinned.', file=sys.stderr)
-        for offset in range(0, len(pending), 3):
-            batch = pending[offset:offset + 3]
-            calls += 1
-            print(f'  Jev batch {calls}: {len(batch)} chunks …', file=sys.stderr, flush=True)
-            try:
-                judged, used = ask(task, batch, key)
-                scores.update(judged)
-                usage.append(used)
-            except Exception as exc:
-                failures += 1
-                fallback.update(c.id for c in batch)
-                print(f'  API fallback ({type(exc).__name__}); retain within budget.', file=sys.stderr)
-    pack, rows = select(chunks, scores, args.budget, task, fallback)
+    task = 'Fix expired refresh token returning HTTP 500'
+    print('\n  JEV / WORK   Context observatory\n  DEMO · scripted scores · no API', file=sys.stderr)
+    chunks, scores = fixtures()
+    pack, rows = select(chunks, scores, args.budget, task)
     before, after = (sum(r[k] for r in rows) for k in ('before_est', 'after_est'))
-    metrics = {'mode': args.command, 'source_before_est': before, 'source_after_est': after,
+    metrics = {'mode': 'demo', 'source_before_est': before, 'source_after_est': after,
                'source_reduction_pct': (1 - after / before) * 100 if before else 0,
-               'pack_tokens_est': estimate(pack), 'budget_tokens_est': args.budget,
-               'estimator': 'ceil(UTF-8 bytes / 3); not a tokenizer', 'api_calls': calls,
-               'api_failures': failures, 'jev_reported_usage_by_batch': usage,
-               'elapsed_seconds': round(time.monotonic() - started, 4),
-               'codex_input_tokens': None, 'task_success': None, 'retrieval': retrieval}
+               'pack_tokens_est': estimate(pack), 'api_calls': 0, 'api_failures': 0,
+               'codex_input_tokens': None, 'task_success': None}
     show(rows, metrics, args.plain, args.delay)
     out = Path(args.output) if args.output else Path.cwd() / 'jev-runs' / uuid4().hex[:12]
     save_run(out, task, chunks, pack, rows, metrics)
@@ -97,50 +65,20 @@ def run(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Visualize Jev repository context selection')
-    sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('demo', 'search'):
-        p = sub.add_parser(name)
-        if name == 'search':
-            p.add_argument('task')
-            p.add_argument('--repo', required=True)
-            p.add_argument('--candidates', type=int, default=40)
-        p.add_argument('--budget', type=int, default=8000)
-        p.add_argument('--output', help='New output directory')
-        p.add_argument('--plain', action='store_true')
-        p.add_argument('--delay', type=float, default=.15)
-    p = sub.add_parser('replay')
-    p.add_argument('run_dir')
-    p.add_argument('--plain', action='store_true')
-    p = sub.add_parser('read')
-    p.add_argument('run_dir')
-    p.add_argument('chunk_id')
-    args = parser.parse_args()
-    try:
-        if args.command == 'replay':
-            root = Path(args.run_dir)
-            print('REPLAY · recorded decisions · no API calls', file=sys.stderr)
-            show(json.loads((root / 'decisions.json').read_text()), json.loads((root / 'metrics.json').read_text()), args.plain)
-            return 0
-        if args.command == 'read':
-            chunks = json.loads((Path(args.run_dir) / 'chunks.json').read_text())
-            c = next((c for c in chunks if c['id'] == args.chunk_id), None)
-            if c is None:
-                raise ValueError('Unknown chunk id')
-            content = Chunk(**c).block()
-            if sys.stdout.isatty():
-                content = '\n'.join(safe_display(line) for line in content.splitlines())
-            print(content)
-            return 0
-        if not 256 <= args.budget <= 200_000 or not 0 <= args.delay <= 1:
-            raise ValueError('Require budget 256–200000 and delay 0–1')
-        if args.command == 'search' and not 1 <= args.candidates <= 200:
-            raise ValueError('Require candidates 1–200')
-        if args.output and Path(args.output).exists():
-            raise ValueError('Output already exists; choose a new directory')
-        return run(args)
-    except KeyboardInterrupt:
-        return 130
-    except Exception as exc:
-        print('Error: ' + safe_display(str(exc)), file=sys.stderr)
-        return 1
+    from .commands import main as command_main
+    return command_main()
+
+
+def search_main():
+    sys.argv.insert(1, 'search')
+    return main()
+
+
+def read_main():
+    sys.argv.insert(1, 'read')
+    return main()
+
+
+def symbol_main():
+    sys.argv.insert(1, 'symbol')
+    return main()
